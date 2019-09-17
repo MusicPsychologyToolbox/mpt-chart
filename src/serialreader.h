@@ -40,7 +40,10 @@ class SerialReader : public QObject
 
 public:
     SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
-                 QXYSeries *airSeries2, QXYSeries *airSeries3);
+                 QXYSeries *airSeries2, QXYSeries *airSeries3,
+                 QXYSeries *pulseSeries);
+
+    void showPulse(bool show);
 
     const int Samples = 100;
 
@@ -58,9 +61,13 @@ private:
     QXYSeries *_airSeries1;
     QXYSeries *_airSeries2;
     QXYSeries *_airSeries3;
+    QXYSeries *_pulseSeries;
     QVector<QPointF> _airBuffer1;
     QVector<QPointF> _airBuffer2;
     QVector<QPointF> _airBuffer3;
+    QVector<QPointF> _pulseBuffer;
+
+    bool _showPulse = false;
 
     int _position = 0;
 };

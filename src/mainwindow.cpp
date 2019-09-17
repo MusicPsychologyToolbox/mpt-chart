@@ -32,7 +32,8 @@ MainWindow::MainWindow(QWidget *parent) :
     _airSeries1(new QLineSeries(this)),
     _airSeries2(new QLineSeries(this)),
     _airSeries3(new QLineSeries(this)),
-    _serialReader(_serialPort, _airSeries1, _airSeries2, _airSeries3)
+    _pulseSeries(new QLineSeries(this)),
+    _serialReader(_serialPort, _airSeries1, _airSeries2, _airSeries3, _pulseSeries)
 {
     _ui->setupUi(this);
     setStandardBaudRates();
@@ -41,9 +42,11 @@ MainWindow::MainWindow(QWidget *parent) :
     _airSeries1->setName("air1");
     _airSeries2->setName("air2");
     _airSeries3->setName("air3");
+    _pulseSeries->setName("pulse");
     _ui->chartView->chart()->addSeries(_airSeries1);
     _ui->chartView->chart()->addSeries(_airSeries2);
     _ui->chartView->chart()->addSeries(_airSeries3);
+    _ui->chartView->chart()->addSeries(_pulseSeries);
 
     QValueAxis *axisX = new QValueAxis;
     axisX->setRange(0, _serialReader.Samples);
@@ -58,6 +61,8 @@ MainWindow::MainWindow(QWidget *parent) :
     _airSeries2->attachAxis(axisY);
     _airSeries3->attachAxis(axisX);
     _airSeries3->attachAxis(axisY);
+    _pulseSeries->attachAxis(axisX);
+    _pulseSeries->attachAxis(axisY);
 
     connect(&_timer, &QTimer::timeout, &_serialReader, &SerialReader::read);
     connect(&_serialReader, &SerialReader::newData, this, &MainWindow::showNewData);
@@ -126,6 +131,11 @@ void MainWindow::on_actionDisconnect_triggered()
     _serialPort->close();
     _timer.stop();
     _ui->statusLog->appendPlainText("Data recoding stopped.");
+}
+
+void MainWindow::on_actionPulse_triggered()
+{
+    _serialReader.showPulse(_ui->actionPulse->isChecked());
 }
 
 void MainWindow::on_actionAboutQt_triggered()

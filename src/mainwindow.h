@@ -57,6 +57,9 @@ private slots:
     void on_actionConnect_triggered();
     void on_actionDisconnect_triggered();
 
+    // View
+    void on_actionPulse_triggered();
+
     // Help
     void on_actionAboutQt_triggered();
 
@@ -86,6 +89,7 @@ private:
     QLineSeries *_airSeries1;
     QLineSeries *_airSeries2;
     QLineSeries *_airSeries3;
+    QLineSeries *_pulseSeries;
     SerialReader _serialReader;
 };
 

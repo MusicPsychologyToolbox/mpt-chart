@@ -5,5 +5,4 @@ mpt-chart visualizes the ouput of the Arduino based measurment setup. The applic
 # todo
 - CSV export
 - chart range settings
-- on/off switch for pulse sensor
 - CODE_OF_CONDUCT

@@ -26,21 +26,35 @@
 #include <QDebug>
 
 SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
-                           QXYSeries *airSeries2, QXYSeries *airSeries3)
+                           QXYSeries *airSeries2, QXYSeries *airSeries3,
+                           QXYSeries *pulseSeries)
     : _serialPort(serialPort),
       _airSeries1(airSeries1),
       _airSeries2(airSeries2),
-      _airSeries3(airSeries3)
+      _airSeries3(airSeries3),
+      _pulseSeries(pulseSeries)
 {
     _airBuffer1.reserve(Samples);
+    _airBuffer2.reserve(Samples);
+    _airBuffer3.reserve(Samples);
+    _pulseBuffer.reserve(Samples);
     for (int i=0; i<Samples; ++i) {
         _airBuffer1.append(QPointF(i, 0));
         _airBuffer2.append(QPointF(i, 0));
         _airBuffer3.append(QPointF(i, 0));
+        _pulseBuffer.append(QPointF(i, 0));
     }
     _airSeries1->replace(_airBuffer1);
     _airSeries2->replace(_airBuffer2);
     _airSeries3->replace(_airBuffer3);
+    _pulseSeries->replace(_pulseBuffer);
+}
+
+void SerialReader::showPulse(bool show)
+{
+    _showPulse = show;
+    for (auto i=0; i<_pulseBuffer.size(); ++i)
+        _pulseBuffer[i].setY(0);
 }
 
 void SerialReader::read()
@@ -55,6 +69,7 @@ void SerialReader::read()
     _airSeries1->replace(_airBuffer1);
     _airSeries2->replace(_airBuffer2);
     _airSeries3->replace(_airBuffer3);
+    _pulseSeries->replace(_pulseBuffer);
     emit newData(data);
 }
 
@@ -65,4 +80,6 @@ void SerialReader::process(const QList<QByteArray> &line)
     _airBuffer1[_position].setY(line[2].toInt());
     _airBuffer2[_position].setY(line[3].toInt());
     _airBuffer3[_position].setY(line[4].toInt());
+    if (_showPulse)
+        _pulseBuffer[_position].setY(line[5].toInt());
 }
