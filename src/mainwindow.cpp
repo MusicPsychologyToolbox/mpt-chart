@@ -40,6 +40,23 @@ MainWindow::MainWindow(QWidget *parent) :
     setStandardBaudRates();
     setSerialPortInfo();
 
+    _minSpinBox = new QSpinBox(_ui->toolBar);
+    _minSpinBox->setRange(0, 1024);
+    _minSpinBox->setValue(200);
+    auto minLabel = new QLabel("Minimum Y: ", _ui->toolBar);
+    minLabel->setMargin(6);
+    _ui->toolBar->addWidget(minLabel);
+    _ui->toolBar->addWidget(_minSpinBox);
+    _maxSpinBox = new QSpinBox(_ui->toolBar);
+    _maxSpinBox->setRange(0, 1024);
+    _maxSpinBox->setValue(300);
+    auto maxLabel = new QLabel("Maximum Y: ", _ui->toolBar);
+    maxLabel->setMargin(6);
+    _ui->toolBar->addWidget(maxLabel);
+    _ui->toolBar->addWidget(_maxSpinBox);
+    connect(_minSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
+    connect(_maxSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
+
     _airSeries1->setName("air1");
     _airSeries2->setName("air2");
     _airSeries3->setName("air3");
@@ -51,19 +68,19 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QValueAxis *axisX = new QValueAxis;
     axisX->setRange(0, _serialReader.Samples);
-    QValueAxis *axisY = new QValueAxis;
-    axisY->setRange(0, 1023);
+    _axisY = new QValueAxis;
+    _axisY->setRange(_minSpinBox->value(), _maxSpinBox->value());
     _ui->chartView->chart()->addAxis(axisX, Qt::AlignBottom);
-    _ui->chartView->chart()->addAxis(axisY, Qt::AlignLeft);
+    _ui->chartView->chart()->addAxis(_axisY, Qt::AlignLeft);
 
     _airSeries1->attachAxis(axisX);
-    _airSeries1->attachAxis(axisY);
+    _airSeries1->attachAxis(_axisY);
     _airSeries2->attachAxis(axisX);
-    _airSeries2->attachAxis(axisY);
+    _airSeries2->attachAxis(_axisY);
     _airSeries3->attachAxis(axisX);
-    _airSeries3->attachAxis(axisY);
+    _airSeries3->attachAxis(_axisY);
     _pulseSeries->attachAxis(axisX);
-    _pulseSeries->attachAxis(axisY);
+    _pulseSeries->attachAxis(_axisY);
 
     connect(&_timer, &QTimer::timeout, &_serialReader, &SerialReader::read);
     connect(&_serialReader, &SerialReader::newData, this, &MainWindow::showNewData);
@@ -165,6 +182,28 @@ void MainWindow::showNewData(const QByteArray &data)
 {
     _rawData.append(data);
     _ui->dataLog->appendPlainText(data);
+}
+
+void MainWindow::minYChanged(int value)
+{
+    if (value == _maxSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
+    } else if (value > _maxSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
+    } else {
+        _axisY->setMin(value);
+    }
+}
+
+void MainWindow::maxYChanged(int value)
+{
+    if (value == _minSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
+    } else if (value < _minSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
+    } else {
+        _axisY->setMax(value);
+    }
 }
 
 void MainWindow::setStandardBaudRates()

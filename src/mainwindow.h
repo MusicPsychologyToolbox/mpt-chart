@@ -34,9 +34,11 @@ class MainWindow;
 }
 QT_CHARTS_BEGIN_NAMESPACE
 class QLineSeries;
+class QValueAxis;
 QT_CHARTS_END_NAMESPACE
 
 class QActionGroup;
+class QSpinBox;
 
 QT_CHARTS_USE_NAMESPACE
 
@@ -66,6 +68,8 @@ private slots:
 
     // Other
     void showNewData(const QByteArray &data);
+    void minYChanged(int value);
+    void maxYChanged(int value);
 
 private:
     void setStandardBaudRates();
@@ -95,6 +99,10 @@ private:
 
     const int _initSize = 1024 * 1024 * 2; // 2MiB
     QByteArray _rawData;
+
+    QValueAxis *_axisY;
+    QSpinBox *_minSpinBox;
+    QSpinBox *_maxSpinBox;
 };
 
 #endif // MAINWINDOW_H
