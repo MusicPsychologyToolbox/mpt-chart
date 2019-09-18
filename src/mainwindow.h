@@ -50,6 +50,7 @@ public:
 
 private slots:
     // File
+    void on_actionExportCSV_triggered();
     void on_actionQuit_triggered();
 
     // Device
@@ -91,6 +92,9 @@ private:
     QLineSeries *_airSeries3;
     QLineSeries *_pulseSeries;
     SerialReader _serialReader;
+
+    const int _initSize = 1024 * 1024 * 2; // 2MiB
+    QByteArray _rawData;
 };
 
 #endif // MAINWINDOW_H

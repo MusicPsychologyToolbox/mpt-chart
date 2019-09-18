@@ -23,8 +23,6 @@
 #include <QSerialPort>
 #include <QXYSeries>
 
-#include <QDebug>
-
 SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
                            QXYSeries *airSeries2, QXYSeries *airSeries3,
                            QXYSeries *pulseSeries)
@@ -80,6 +78,6 @@ void SerialReader::process(const QList<QByteArray> &line)
     _airBuffer1[_position].setY(line[2].toInt());
     _airBuffer2[_position].setY(line[3].toInt());
     _airBuffer3[_position].setY(line[4].toInt());
-    if (_showPulse)
+    if (_showPulse && line.size() == 6)
         _pulseBuffer[_position].setY(line[5].toInt());
 }

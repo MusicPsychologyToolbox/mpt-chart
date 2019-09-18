@@ -22,6 +22,7 @@
 #include "ui_mainwindow.h"
 
 #include <QActionGroup>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QSerialPort>
 
@@ -77,6 +78,21 @@ MainWindow::~MainWindow()
     delete _ui;
 }
 
+void MainWindow::on_actionExportCSV_triggered()
+{
+    auto fileName = QFileDialog::getSaveFileName(this,
+                                                 tr("Export CSV"),
+                                                 QString(),
+                                                 tr("CSV (*.csv)"));
+    QFile file(fileName);
+    if (file.open(QFile::WriteOnly)) {
+        QTextStream stream(&file);
+        stream << "ms,sync,air1,air2,air3,pulse\n";
+        stream << _rawData;
+        file.close();
+    }
+}
+
 void MainWindow::on_actionQuit_triggered()
 {
     close();
@@ -93,6 +109,8 @@ void MainWindow::on_actionConnect_triggered()
 {
     if (_serialPort->isOpen())
         return;
+    _rawData.clear();
+    _rawData.reserve(_initSize);
     _ui->dataLog->clear();
 
     auto baud = _baudGroup->checkedAction()->text().toInt();
@@ -145,6 +163,7 @@ void MainWindow::on_actionAboutQt_triggered()
 
 void MainWindow::showNewData(const QByteArray &data)
 {
+    _rawData.append(data);
     _ui->dataLog->appendPlainText(data);
 }
 
