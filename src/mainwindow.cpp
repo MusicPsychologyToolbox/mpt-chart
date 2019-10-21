@@ -40,22 +40,22 @@ MainWindow::MainWindow(QWidget *parent) :
     setStandardBaudRates();
     setSerialPortInfo();
 
-    _minSpinBox = new QSpinBox(_ui->toolBar);
-    _minSpinBox->setRange(0, 1024);
-    _minSpinBox->setValue(200);
+    _minYSpinBox = new QSpinBox(_ui->toolBar);
+    _minYSpinBox->setRange(0, 1024);
+    _minYSpinBox->setValue(200);
     auto minLabel = new QLabel("Minimum Y: ", _ui->toolBar);
     minLabel->setMargin(6);
     _ui->toolBar->addWidget(minLabel);
-    _ui->toolBar->addWidget(_minSpinBox);
-    _maxSpinBox = new QSpinBox(_ui->toolBar);
-    _maxSpinBox->setRange(0, 1024);
-    _maxSpinBox->setValue(300);
+    _ui->toolBar->addWidget(_minYSpinBox);
+    _maxYSpinBox = new QSpinBox(_ui->toolBar);
+    _maxYSpinBox->setRange(0, 1024);
+    _maxYSpinBox->setValue(300);
     auto maxLabel = new QLabel("Maximum Y: ", _ui->toolBar);
     maxLabel->setMargin(6);
     _ui->toolBar->addWidget(maxLabel);
-    _ui->toolBar->addWidget(_maxSpinBox);
-    connect(_minSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
-    connect(_maxSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
+    _ui->toolBar->addWidget(_maxYSpinBox);
+    connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
+    connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
 
     _airSeries1->setName("air1");
     _airSeries2->setName("air2");
@@ -69,7 +69,7 @@ MainWindow::MainWindow(QWidget *parent) :
     QValueAxis *axisX = new QValueAxis;
     axisX->setRange(0, _serialReader.Samples);
     _axisY = new QValueAxis;
-    _axisY->setRange(_minSpinBox->value(), _maxSpinBox->value());
+    _axisY->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
     _ui->chartView->chart()->addAxis(axisX, Qt::AlignBottom);
     _ui->chartView->chart()->addAxis(_axisY, Qt::AlignLeft);
 
@@ -186,9 +186,9 @@ void MainWindow::showNewData(const QByteArray &data)
 
 void MainWindow::minYChanged(int value)
 {
-    if (value == _maxSpinBox->value()) {
+    if (value == _maxYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
-    } else if (value > _maxSpinBox->value()) {
+    } else if (value > _maxYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
     } else {
         _axisY->setMin(value);
@@ -197,9 +197,9 @@ void MainWindow::minYChanged(int value)
 
 void MainWindow::maxYChanged(int value)
 {
-    if (value == _minSpinBox->value()) {
+    if (value == _minYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
-    } else if (value < _minSpinBox->value()) {
+    } else if (value < _minYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
     } else {
         _axisY->setMax(value);

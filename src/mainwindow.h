@@ -101,8 +101,8 @@ private:
     QByteArray _rawData;
 
     QValueAxis *_axisY;
-    QSpinBox *_minSpinBox;
-    QSpinBox *_maxSpinBox;
+    QSpinBox *_minYSpinBox;
+    QSpinBox *_maxYSpinBox;
 };
 
 #endif // MAINWINDOW_H
