@@ -68,10 +68,15 @@ private slots:
 
     // Other
     void showNewData(const QByteArray &data);
+    void minXChanged(int value);
+    void maxXChanged(int value);
     void minYChanged(int value);
     void maxYChanged(int value);
 
 private:
+    void setupAxisX();
+    void setupAxisY();
+
     void setStandardBaudRates();
     void setSerialPortInfo();
     void setActionsForPortInfos();
@@ -100,6 +105,9 @@ private:
     const int _initSize = 1024 * 1024 * 2; // 2MiB
     QByteArray _rawData;
 
+    QValueAxis *_axisX;
+    QSpinBox *_minXSpinBox;
+    QSpinBox *_maxXSpinBox;
     QValueAxis *_axisY;
     QSpinBox *_minYSpinBox;
     QSpinBox *_maxYSpinBox;

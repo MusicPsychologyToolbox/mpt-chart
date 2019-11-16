@@ -32,11 +32,11 @@ SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
       _airSeries3(airSeries3),
       _pulseSeries(pulseSeries)
 {
-    _airBuffer1.reserve(Samples);
-    _airBuffer2.reserve(Samples);
-    _airBuffer3.reserve(Samples);
-    _pulseBuffer.reserve(Samples);
-    for (int i=0; i<Samples; ++i) {
+    _airBuffer1.reserve(_samples);
+    _airBuffer2.reserve(_samples);
+    _airBuffer3.reserve(_samples);
+    _pulseBuffer.reserve(_samples);
+    for (int i=0; i<_samples; ++i) {
         _airBuffer1.append(QPointF(i, 0));
         _airBuffer2.append(QPointF(i, 0));
         _airBuffer3.append(QPointF(i, 0));
@@ -46,6 +46,16 @@ SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
     _airSeries2->replace(_airBuffer2);
     _airSeries3->replace(_airBuffer3);
     _pulseSeries->replace(_pulseBuffer);
+}
+
+int SerialReader::samples() const
+{
+    return _samples;
+}
+
+void SerialReader::setSamples(int samples)
+{
+    _samples = samples;
 }
 
 void SerialReader::showPulse(bool show)
@@ -59,7 +69,7 @@ void SerialReader::read()
 {
     auto data = _serialPort->readAll();
     for (auto line: data.split('\n')) {
-        if (!(_position%Samples))
+        if (!(_position%_samples))
             _position=0;
         process(line.split(','));
         ++_position;
@@ -75,9 +85,17 @@ void SerialReader::process(const QList<QByteArray> &line)
 {
     if (line.size() != 6)
         return;
-    _airBuffer1[_position].setY(line[2].toInt());
-    _airBuffer2[_position].setY(line[3].toInt());
-    _airBuffer3[_position].setY(line[4].toInt());
-    if (_showPulse && line.size() == 6)
-        _pulseBuffer[_position].setY(line[5].toInt());
+    if (_airBuffer1.size()<_samples) {
+        _airBuffer1.push_back(QPointF(_airBuffer1.size(),line[2].toInt()));
+        _airBuffer2.push_back(QPointF(_airBuffer2.size(),line[3].toInt()));
+        _airBuffer3.push_back(QPointF(_airBuffer3.size(),line[4].toInt()));
+        if (_showPulse && line.size() == 6)
+            _pulseBuffer.push_back(QPointF(_pulseBuffer.size(),line[4].toInt()));
+    } else {
+        _airBuffer1[_position].setY(line[2].toInt());
+        _airBuffer2[_position].setY(line[3].toInt());
+        _airBuffer3[_position].setY(line[4].toInt());
+        if (_showPulse && line.size() == 6)
+            _pulseBuffer[_position].setY(line[5].toInt());
+    }
 }

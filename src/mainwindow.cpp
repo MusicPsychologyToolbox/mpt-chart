@@ -40,23 +40,6 @@ MainWindow::MainWindow(QWidget *parent) :
     setStandardBaudRates();
     setSerialPortInfo();
 
-    _minYSpinBox = new QSpinBox(_ui->toolBar);
-    _minYSpinBox->setRange(0, 1024);
-    _minYSpinBox->setValue(200);
-    auto minLabel = new QLabel("Minimum Y: ", _ui->toolBar);
-    minLabel->setMargin(6);
-    _ui->toolBar->addWidget(minLabel);
-    _ui->toolBar->addWidget(_minYSpinBox);
-    _maxYSpinBox = new QSpinBox(_ui->toolBar);
-    _maxYSpinBox->setRange(0, 1024);
-    _maxYSpinBox->setValue(300);
-    auto maxLabel = new QLabel("Maximum Y: ", _ui->toolBar);
-    maxLabel->setMargin(6);
-    _ui->toolBar->addWidget(maxLabel);
-    _ui->toolBar->addWidget(_maxYSpinBox);
-    connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
-    connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
-
     _airSeries1->setName("air1");
     _airSeries2->setName("air2");
     _airSeries3->setName("air3");
@@ -66,20 +49,16 @@ MainWindow::MainWindow(QWidget *parent) :
     _ui->chartView->chart()->addSeries(_airSeries3);
     _ui->chartView->chart()->addSeries(_pulseSeries);
 
-    QValueAxis *axisX = new QValueAxis;
-    axisX->setRange(0, _serialReader.Samples);
-    _axisY = new QValueAxis;
-    _axisY->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
-    _ui->chartView->chart()->addAxis(axisX, Qt::AlignBottom);
-    _ui->chartView->chart()->addAxis(_axisY, Qt::AlignLeft);
+    setupAxisX();
+    setupAxisY();
 
-    _airSeries1->attachAxis(axisX);
+    _airSeries1->attachAxis(_axisX);
     _airSeries1->attachAxis(_axisY);
-    _airSeries2->attachAxis(axisX);
+    _airSeries2->attachAxis(_axisX);
     _airSeries2->attachAxis(_axisY);
-    _airSeries3->attachAxis(axisX);
+    _airSeries3->attachAxis(_axisX);
     _airSeries3->attachAxis(_axisY);
-    _pulseSeries->attachAxis(axisX);
+    _pulseSeries->attachAxis(_axisX);
     _pulseSeries->attachAxis(_axisY);
 
     connect(&_timer, &QTimer::timeout, &_serialReader, &SerialReader::read);
@@ -184,6 +163,30 @@ void MainWindow::showNewData(const QByteArray &data)
     _ui->dataLog->appendPlainText(data);
 }
 
+void MainWindow::minXChanged(int value)
+{
+    if (value == _maxXSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum X must be != maximum X."));
+    } else if (value > _maxXSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
+    } else {
+        _axisX->setMin(value);
+        _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
+    }
+}
+
+void MainWindow::maxXChanged(int value)
+{
+    if (value == _minXSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum X must be != maximum X."));
+    } else if (value < _minXSpinBox->value()) {
+        _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
+    } else {
+        _axisX->setMax(value);
+        _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
+    }
+}
+
 void MainWindow::minYChanged(int value)
 {
     if (value == _maxYSpinBox->value()) {
@@ -204,6 +207,54 @@ void MainWindow::maxYChanged(int value)
     } else {
         _axisY->setMax(value);
     }
+}
+
+void MainWindow::setupAxisX()
+{
+    _minXSpinBox = new QSpinBox(_ui->toolBar);
+    _minXSpinBox->setRange(0, std::numeric_limits<int>::max());
+    _minXSpinBox->setValue(0);
+    auto minLabel = new QLabel("Minimum X: ", _ui->toolBar);
+    minLabel->setMargin(6);
+    _ui->toolBar->addWidget(minLabel);
+    _ui->toolBar->addWidget(_minXSpinBox);
+    _maxXSpinBox = new QSpinBox(_ui->toolBar);
+    _maxXSpinBox->setRange(0, std::numeric_limits<int>::max());
+    _maxXSpinBox->setValue(_serialReader.samples());
+    auto maxLabel = new QLabel("Maximum X: ", _ui->toolBar);
+    maxLabel->setMargin(6);
+    _ui->toolBar->addWidget(maxLabel);
+    _ui->toolBar->addWidget(_maxXSpinBox);
+    connect(_minXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minXChanged);
+    connect(_maxXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxXChanged);
+
+    _axisX = new QValueAxis;
+    _axisX->setRange(_minXSpinBox->value(), _maxXSpinBox->value());
+    _ui->chartView->chart()->addAxis(_axisX, Qt::AlignBottom);
+}
+
+void MainWindow::setupAxisY()
+{
+    _minYSpinBox = new QSpinBox(_ui->toolBar);
+    _minYSpinBox->setRange(0, 1024);
+    _minYSpinBox->setValue(200);
+    auto minLabel = new QLabel("Minimum Y: ", _ui->toolBar);
+    minLabel->setMargin(6);
+    _ui->toolBar->addWidget(minLabel);
+    _ui->toolBar->addWidget(_minYSpinBox);
+    _maxYSpinBox = new QSpinBox(_ui->toolBar);
+    _maxYSpinBox->setRange(0, 1024);
+    _maxYSpinBox->setValue(300);
+    auto maxLabel = new QLabel("Maximum Y: ", _ui->toolBar);
+    maxLabel->setMargin(6);
+    _ui->toolBar->addWidget(maxLabel);
+    _ui->toolBar->addWidget(_maxYSpinBox);
+    connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
+    connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
+
+    _axisY = new QValueAxis;
+    _axisY->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
+    _ui->chartView->chart()->addAxis(_axisY, Qt::AlignLeft);
 }
 
 void MainWindow::setStandardBaudRates()

@@ -43,9 +43,10 @@ public:
                  QXYSeries *airSeries2, QXYSeries *airSeries3,
                  QXYSeries *pulseSeries);
 
-    void showPulse(bool show);
+    int samples() const;
+    void setSamples(int samples);
 
-    const int Samples = 100;
+    void showPulse(bool show);
 
 signals:
     void newData(const QByteArray &data);
@@ -70,6 +71,8 @@ private:
     bool _showPulse = false;
 
     int _position = 0;
+
+    int _samples = 100;
 };
 
 #endif // SERIALREADER_H
