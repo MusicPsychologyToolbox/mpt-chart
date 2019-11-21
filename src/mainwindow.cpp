@@ -231,6 +231,9 @@ void MainWindow::setupAxisX()
     _axisX = new QValueAxis;
     _axisX->setRange(_minXSpinBox->value(), _maxXSpinBox->value());
     _ui->chartView->chart()->addAxis(_axisX, Qt::AlignBottom);
+
+    _minXSpinBox->setEnabled(false);
+    _maxXSpinBox->setEnabled(false);
 }
 
 void MainWindow::setupAxisY()

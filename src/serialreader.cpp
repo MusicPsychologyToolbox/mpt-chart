@@ -68,12 +68,23 @@ void SerialReader::showPulse(bool show)
 void SerialReader::read()
 {
     auto data = _serialPort->readAll();
-    for (auto line: data.split('\n')) {
-        if (!(_position%_samples))
-            _position=0;
-        process(line.split(','));
-        ++_position;
+    auto lines = data.split('\n');
+
+    int count = lines.count();
+    if (_samples - (_position + 1) < count) {
+        _position = _samples - count;
+        for (int i=0; i<_position; ++i) {
+            _airBuffer1[i].setY(_airBuffer1.at(i+count).y());
+            _airBuffer2[i].setY(_airBuffer2.at(i+count).y());
+            _airBuffer3[i].setY(_airBuffer3.at(i+count).y());
+            _pulseBuffer[i].setY(_pulseBuffer.at(i+count).y());
+        }
     }
+
+    for (auto line: lines)
+        if (process(line.split(',')))
+            ++_position;
+
     _airSeries1->replace(_airBuffer1);
     _airSeries2->replace(_airBuffer2);
     _airSeries3->replace(_airBuffer3);
@@ -81,21 +92,14 @@ void SerialReader::read()
     emit newData(data);
 }
 
-void SerialReader::process(const QList<QByteArray> &line)
+bool SerialReader::process(const QList<QByteArray> &columns)
 {
-    if (line.size() != 6)
-        return;
-    if (_airBuffer1.size()<_samples) {
-        _airBuffer1.push_back(QPointF(_airBuffer1.size(),line[2].toInt()));
-        _airBuffer2.push_back(QPointF(_airBuffer2.size(),line[3].toInt()));
-        _airBuffer3.push_back(QPointF(_airBuffer3.size(),line[4].toInt()));
-        if (_showPulse && line.size() == 6)
-            _pulseBuffer.push_back(QPointF(_pulseBuffer.size(),line[4].toInt()));
-    } else {
-        _airBuffer1[_position].setY(line[2].toInt());
-        _airBuffer2[_position].setY(line[3].toInt());
-        _airBuffer3[_position].setY(line[4].toInt());
-        if (_showPulse && line.size() == 6)
-            _pulseBuffer[_position].setY(line[5].toInt());
-    }
+    if (columns.size() != 6)
+        return false;
+    _airBuffer1[_position].setY(columns[2].toInt());
+    _airBuffer2[_position].setY(columns[3].toInt());
+    _airBuffer3[_position].setY(columns[4].toInt());
+    if (_showPulse && columns.size() == 6)
+        _pulseBuffer[_position].setY(columns[5].toInt());
+    return true;
 }

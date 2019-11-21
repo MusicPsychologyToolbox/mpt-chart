@@ -55,7 +55,7 @@ public slots:
     void read();
 
 private:
-    void process(const QList<QByteArray> &line);
+    bool process(const QList<QByteArray> &columns);
 
 private:
     QSerialPort *_serialPort;
