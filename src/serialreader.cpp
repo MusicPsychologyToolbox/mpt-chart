@@ -67,8 +67,17 @@ void SerialReader::showPulse(bool show)
 
 void SerialReader::read()
 {
-    auto data = _serialPort->readAll();
-    auto lines = data.split('\n');
+    _buffer.append(_serialPort->readAll());
+    int index = _buffer.lastIndexOf('\n') + 1;
+    auto data = _buffer.left(index);
+    _buffer.remove(0, index);
+
+    QList<QByteArray> lines;
+    for (auto line: data.split('\n')) {
+        if (line.isEmpty())
+            continue;
+        lines.push_back(line);
+    }
 
     int count = lines.count();
     if (_samples - (_position + 1) < count) {
@@ -81,15 +90,16 @@ void SerialReader::read()
         }
     }
 
-    for (auto line: lines)
+    for (auto line: lines) {
         if (process(line.split(',')))
             ++_position;
+    }
 
     _airSeries1->replace(_airBuffer1);
     _airSeries2->replace(_airBuffer2);
     _airSeries3->replace(_airBuffer3);
     _pulseSeries->replace(_pulseBuffer);
-    emit newData(data);
+    emit newData(lines.join("\n"));
 }
 
 bool SerialReader::process(const QList<QByteArray> &columns)

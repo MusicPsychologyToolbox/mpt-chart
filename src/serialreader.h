@@ -58,6 +58,12 @@ private:
     bool process(const QList<QByteArray> &columns);
 
 private:
+    bool _showPulse = false;
+    int _position = 0;
+    int _samples = 100;
+
+    QByteArray _buffer;
+
     QSerialPort *_serialPort;
     QXYSeries *_airSeries1;
     QXYSeries *_airSeries2;
@@ -68,11 +74,6 @@ private:
     QVector<QPointF> _airBuffer3;
     QVector<QPointF> _pulseBuffer;
 
-    bool _showPulse = false;
-
-    int _position = 0;
-
-    int _samples = 100;
 };
 
 #endif // SERIALREADER_H
