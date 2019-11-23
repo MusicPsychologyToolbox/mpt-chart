@@ -11,7 +11,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = mpt-chart
 TEMPLATE = app
 
-VERSION = 0.0.2.0
+VERSION = 0.0.3.0
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which has been marked as deprecated (the exact warnings
@@ -29,10 +29,12 @@ CONFIG += c++14
 SOURCES += \
         main.cpp \
         mainwindow.cpp \
+        chartview.cpp \
         serialreader.cpp
 
 HEADERS += \
         mainwindow.h \
+        chartview.h \
         serialreader.h
 
 FORMS += \

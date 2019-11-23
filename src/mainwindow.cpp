@@ -23,46 +23,50 @@
 
 #include <QActionGroup>
 #include <QFileDialog>
+#include <QLabel>
 #include <QMessageBox>
 #include <QSerialPort>
+#include <QSpinBox>
+#include <QTextStream>
+#include <QValueAxis>
+#include <QXYSeries>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     _ui(new Ui::MainWindow),
     _serialPort(new QSerialPort(this)),
-    _airSeries1(new QLineSeries(this)),
-    _airSeries2(new QLineSeries(this)),
-    _airSeries3(new QLineSeries(this)),
-    _pulseSeries(new QLineSeries(this)),
-    _serialReader(_serialPort, _airSeries1, _airSeries2, _airSeries3, _pulseSeries)
+    _serialReader(_serialPort)
 {
     _ui->setupUi(this);
     setStandardBaudRates();
     setSerialPortInfo();
 
-    _airSeries1->setName("air1");
-    _airSeries2->setName("air2");
-    _airSeries3->setName("air3");
-    _pulseSeries->setName("pulse");
-    _ui->chartView->chart()->addSeries(_airSeries1);
-    _ui->chartView->chart()->addSeries(_airSeries2);
-    _ui->chartView->chart()->addSeries(_airSeries3);
-    _ui->chartView->chart()->addSeries(_pulseSeries);
+    _ui->chartView->chart()->addSeries(_serialReader.airSeries1());
+    _ui->chartView->chart()->addSeries(_serialReader.airSeries2());
+    _ui->chartView->chart()->addSeries(_serialReader.airSeries3());
+    _ui->chartView->chart()->addSeries(_serialReader.pulseSeries());
 
     setupAxisX();
     setupAxisY();
 
-    _airSeries1->attachAxis(_axisX);
-    _airSeries1->attachAxis(_axisY);
-    _airSeries2->attachAxis(_axisX);
-    _airSeries2->attachAxis(_axisY);
-    _airSeries3->attachAxis(_axisX);
-    _airSeries3->attachAxis(_axisY);
-    _pulseSeries->attachAxis(_axisX);
-    _pulseSeries->attachAxis(_axisY);
+    _serialReader.airSeries1()->attachAxis(_ui->chartView->axisX());
+    _serialReader.airSeries1()->attachAxis(_ui->chartView->axisY());
+    _serialReader.airSeries2()->attachAxis(_ui->chartView->axisX());
+    _serialReader.airSeries2()->attachAxis(_ui->chartView->axisY());
+    _serialReader.airSeries3()->attachAxis(_ui->chartView->axisX());
+    _serialReader.airSeries3()->attachAxis(_ui->chartView->axisY());
+    _serialReader.pulseSeries()->attachAxis(_ui->chartView->axisX());
+    _serialReader.pulseSeries()->attachAxis(_ui->chartView->axisY());
 
     connect(&_timer, &QTimer::timeout, &_serialReader, &SerialReader::read);
-    connect(&_serialReader, &SerialReader::newData, this, &MainWindow::showNewData);
+    connect(&_serialReader, &SerialReader::newData,
+            this, &MainWindow::showNewData);
+    connect(_ui->chartView, &ChartView::axisValuesChanged,
+            this, &MainWindow::setAxisValues);
+    connect(_ui->chartView, &ChartView::shiftLeft,
+            this, &MainWindow::shiftLeft);
+    connect(_ui->chartView, &ChartView::shiftRight,
+            this, &MainWindow::shiftRight);
 }
 
 MainWindow::~MainWindow()
@@ -72,6 +76,24 @@ MainWindow::~MainWindow()
 
     delete _serialPort;
     delete _ui;
+}
+
+void MainWindow::on_actionOpen_CSV_triggered()
+{
+    auto fileName = QFileDialog::getOpenFileName(this,
+                                                 tr("Open CSV"),
+                                                 QString(),
+                                                 tr("CSV (*.csv)"));
+    QFile file(fileName);
+    if (file.open(QFile::ReadOnly)) {
+        _rawData = file.readAll();
+        _ui->dataLog->setPlainText(_rawData);
+        _rawLines = _rawData.split('\n');
+        if (_rawLines.first().startsWith("ms"))
+            _rawLines.removeFirst();
+        _serialReader.process(_rawLines.mid(0, _serialReader.samples()));
+        file.close();
+    }
 }
 
 void MainWindow::on_actionExportCSV_triggered()
@@ -106,6 +128,7 @@ void MainWindow::on_actionConnect_triggered()
     if (_serialPort->isOpen())
         return;
     _rawData.clear();
+    _rawLines.clear();
     _rawData.reserve(_initSize);
     _ui->dataLog->clear();
 
@@ -147,6 +170,24 @@ void MainWindow::on_actionDisconnect_triggered()
     _ui->statusLog->appendPlainText("Data recoding stopped.");
 }
 
+void MainWindow::on_actionZoom_In_triggered()
+{
+    _ui->chartView->chart()->zoomIn();
+    setAxisValues();
+}
+
+void MainWindow::on_actionZoom_Out_triggered()
+{
+    _ui->chartView->chart()->zoomOut();
+    setAxisValues();
+}
+
+void MainWindow::on_actionReset_Zoom_triggered()
+{
+    _ui->chartView->chart()->zoomReset();
+    setAxisValues();
+}
+
 void MainWindow::on_actionPulse_triggered()
 {
     _serialReader.showPulse(_ui->actionPulse->isChecked());
@@ -170,7 +211,7 @@ void MainWindow::minXChanged(int value)
     } else if (value > _maxXSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
     } else {
-        _axisX->setMin(value);
+        _ui->chartView->axisX()->setMin(value);
         _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
     }
 }
@@ -182,7 +223,7 @@ void MainWindow::maxXChanged(int value)
     } else if (value < _minXSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
     } else {
-        _axisX->setMax(value);
+        _ui->chartView->axisX()->setMax(value);
         _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
     }
 }
@@ -194,7 +235,7 @@ void MainWindow::minYChanged(int value)
     } else if (value > _maxYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
     } else {
-        _axisY->setMin(value);
+        _ui->chartView->axisY()->setMin(value);
     }
 }
 
@@ -205,7 +246,7 @@ void MainWindow::maxYChanged(int value)
     } else if (value < _minYSpinBox->value()) {
         _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
     } else {
-        _axisY->setMax(value);
+        _ui->chartView->axisY()->setMax(value);
     }
 }
 
@@ -228,9 +269,7 @@ void MainWindow::setupAxisX()
     connect(_minXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minXChanged);
     connect(_maxXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxXChanged);
 
-    _axisX = new QValueAxis;
-    _axisX->setRange(_minXSpinBox->value(), _maxXSpinBox->value());
-    _ui->chartView->chart()->addAxis(_axisX, Qt::AlignBottom);
+    _ui->chartView->axisX()->setRange(_minXSpinBox->value(), _maxXSpinBox->value());
 
     _minXSpinBox->setEnabled(false);
     _maxXSpinBox->setEnabled(false);
@@ -255,9 +294,7 @@ void MainWindow::setupAxisY()
     connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
     connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
 
-    _axisY = new QValueAxis;
-    _axisY->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
-    _ui->chartView->chart()->addAxis(_axisY, Qt::AlignLeft);
+    _ui->chartView->axisY()->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
 }
 
 void MainWindow::setStandardBaudRates()
@@ -298,4 +335,44 @@ void MainWindow::setActionsForPortInfos()
         _portMenu->addAction(port);
         _portGroup->addAction(port);
     }
+}
+
+void MainWindow::setAxisValues()
+{
+    _minYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->min()));
+    _maxYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->max()));
+}
+
+void MainWindow::shiftLeft()
+{
+    if (_rawLines.isEmpty())
+        _rawLines = _rawData.split('\n');
+
+    if (_minShift == 0) return;
+
+    _minShift -= 10;
+    if (!_maxShift)
+        _maxShift -= _serialReader.samples() - 10;
+    else
+        _maxShift -= 10;
+
+    auto lines = _rawLines.mid(_minShift, _maxShift);
+    _serialReader.process(lines);
+}
+
+void MainWindow::shiftRight()
+{
+    if (_rawLines.isEmpty())
+        _rawLines = _rawData.split('\n');
+
+    if (_rawLines.size() <= _maxShift) return;
+
+    _minShift += 10;
+    if (!_maxShift)
+        _maxShift += 10 + _serialReader.samples();
+    else
+        _maxShift += 10;
+
+    auto lines = _rawLines.mid(_minShift, _maxShift);
+    _serialReader.process(lines);
 }

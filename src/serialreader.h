@@ -27,6 +27,7 @@
 #include <QVector>
 
 QT_CHARTS_BEGIN_NAMESPACE
+class QLineSeries;
 class QXYSeries;
 QT_CHARTS_END_NAMESPACE
 
@@ -39,14 +40,35 @@ class SerialReader : public QObject
     Q_OBJECT
 
 public:
-    SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
-                 QXYSeries *airSeries2, QXYSeries *airSeries3,
-                 QXYSeries *pulseSeries);
+    SerialReader(QSerialPort *serialPort, QObject *parent = nullptr);
 
-    int samples() const;
-    void setSamples(int samples);
+    QXYSeries* airSeries1() const {
+        return _airSeries1;
+    }
+
+    QXYSeries* airSeries2() const {
+        return _airSeries2;
+    }
+
+    QXYSeries* airSeries3() const {
+        return _airSeries3;
+    }
+
+    QXYSeries* pulseSeries() const {
+        return _pulseSeries;
+    }
+
+    int samples() const {
+        return _samples;
+    }
+
+    void setSamples(int samples) {
+        _samples = samples;
+    }
 
     void showPulse(bool show);
+
+    void process(const QList<QByteArray> &lines);
 
 signals:
     void newData(const QByteArray &data);
@@ -55,12 +77,12 @@ public slots:
     void read();
 
 private:
-    bool process(const QList<QByteArray> &columns);
+    bool setValues(const QList<QByteArray> &columns);
 
 private:
     bool _showPulse = false;
     int _position = 0;
-    int _samples = 100;
+    int _samples = 1000;
 
     QByteArray _buffer;
 
@@ -73,7 +95,6 @@ private:
     QVector<QPointF> _airBuffer2;
     QVector<QPointF> _airBuffer3;
     QVector<QPointF> _pulseBuffer;
-
 };
 
 #endif // SERIALREADER_H

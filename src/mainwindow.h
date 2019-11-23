@@ -26,21 +26,14 @@
 #include <QMap>
 #include <QMainWindow>
 #include <QSerialPortInfo>
-#include <QChartGlobal>
 #include <QTimer>
 
 namespace Ui {
 class MainWindow;
 }
-QT_CHARTS_BEGIN_NAMESPACE
-class QLineSeries;
-class QValueAxis;
-QT_CHARTS_END_NAMESPACE
 
 class QActionGroup;
 class QSpinBox;
-
-QT_CHARTS_USE_NAMESPACE
 
 class MainWindow : public QMainWindow
 {
@@ -52,6 +45,7 @@ public:
 
 private slots:
     // File
+    void on_actionOpen_CSV_triggered();
     void on_actionExportCSV_triggered();
     void on_actionQuit_triggered();
 
@@ -61,6 +55,9 @@ private slots:
     void on_actionDisconnect_triggered();
 
     // View
+    void on_actionZoom_In_triggered();
+    void on_actionZoom_Out_triggered();
+    void on_actionReset_Zoom_triggered();
     void on_actionPulse_triggered();
 
     // Help
@@ -72,6 +69,11 @@ private slots:
     void maxXChanged(int value);
     void minYChanged(int value);
     void maxYChanged(int value);
+
+    void setAxisValues();
+
+    void shiftLeft();
+    void shiftRight();
 
 private:
     void setupAxisX();
@@ -96,19 +98,16 @@ private:
     QTimer _timer;
     const int _timer_msec = 50;
 
-    QLineSeries *_airSeries1;
-    QLineSeries *_airSeries2;
-    QLineSeries *_airSeries3;
-    QLineSeries *_pulseSeries;
     SerialReader _serialReader;
 
     const int _initSize = 1024 * 1024 * 2; // 2MiB
     QByteArray _rawData;
+    QList<QByteArray> _rawLines;
+    int _minShift = 0;
+    int _maxShift = _serialReader.samples();
 
-    QValueAxis *_axisX;
     QSpinBox *_minXSpinBox;
     QSpinBox *_maxXSpinBox;
-    QValueAxis *_axisY;
     QSpinBox *_minYSpinBox;
     QSpinBox *_maxYSpinBox;
 };

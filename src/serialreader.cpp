@@ -21,17 +21,22 @@
 #include "serialreader.h"
 
 #include <QSerialPort>
+#include <QLineSeries>
 #include <QXYSeries>
 
-SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
-                           QXYSeries *airSeries2, QXYSeries *airSeries3,
-                           QXYSeries *pulseSeries)
-    : _serialPort(serialPort),
-      _airSeries1(airSeries1),
-      _airSeries2(airSeries2),
-      _airSeries3(airSeries3),
-      _pulseSeries(pulseSeries)
+SerialReader::SerialReader(QSerialPort *serialPort, QObject *parent)
+    : QObject(parent),
+      _serialPort(serialPort),
+      _airSeries1(new QLineSeries(this)),
+      _airSeries2(new QLineSeries(this)),
+      _airSeries3(new QLineSeries(this)),
+      _pulseSeries(new QLineSeries(this))
 {
+    _airSeries1->setName("air1");
+    _airSeries2->setName("air2");
+    _airSeries3->setName("air3");
+    _pulseSeries->setName("pulse");
+
     _airBuffer1.reserve(_samples);
     _airBuffer2.reserve(_samples);
     _airBuffer3.reserve(_samples);
@@ -48,21 +53,28 @@ SerialReader::SerialReader(QSerialPort *serialPort, QXYSeries *airSeries1,
     _pulseSeries->replace(_pulseBuffer);
 }
 
-int SerialReader::samples() const
-{
-    return _samples;
-}
-
-void SerialReader::setSamples(int samples)
-{
-    _samples = samples;
-}
-
 void SerialReader::showPulse(bool show)
 {
     _showPulse = show;
     for (auto i=0; i<_pulseBuffer.size(); ++i)
         _pulseBuffer[i].setY(0);
+}
+
+void SerialReader::process(const QList<QByteArray> &lines)
+{
+    _position = 0;
+    for (auto line: lines) {
+        if (!(_position % _samples)) {
+            _position = 0;
+        }
+        setValues(line.split(','));
+        ++_position;
+    }
+
+    _airSeries1->replace(_airBuffer1);
+    _airSeries2->replace(_airBuffer2);
+    _airSeries3->replace(_airBuffer3);
+    _pulseSeries->replace(_pulseBuffer);
 }
 
 void SerialReader::read()
@@ -91,7 +103,7 @@ void SerialReader::read()
     }
 
     for (auto line: lines) {
-        if (process(line.split(',')))
+        if (setValues(line.split(',')))
             ++_position;
     }
 
@@ -102,7 +114,7 @@ void SerialReader::read()
     emit newData(lines.join("\n"));
 }
 
-bool SerialReader::process(const QList<QByteArray> &columns)
+bool SerialReader::setValues(const QList<QByteArray> &columns)
 {
     if (columns.size() != 6)
         return false;
