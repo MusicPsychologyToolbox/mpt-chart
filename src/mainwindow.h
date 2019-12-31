@@ -51,6 +51,7 @@ private slots:
 
     // Device
     void on_deviceMenu_aboutToShow();
+    void deviceSelected(QAction *action);
     void on_actionConnect_triggered();
     void on_actionDisconnect_triggered();
 
@@ -92,6 +93,7 @@ private:
 
     QActionGroup *_baudGroup;
     QActionGroup *_portGroup;
+    QString _checkedAction;
 
     QMap<QString, QSerialPortInfo> _serialPortInfos;
 

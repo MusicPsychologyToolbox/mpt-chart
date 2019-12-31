@@ -123,6 +123,12 @@ void MainWindow::on_deviceMenu_aboutToShow()
     setActionsForPortInfos();
 }
 
+void MainWindow::deviceSelected(QAction *action)
+{
+    if (action)
+        _checkedAction = action->text();
+}
+
 void MainWindow::on_actionConnect_triggered()
 {
     if (_serialPort->isOpen())
@@ -317,6 +323,7 @@ void MainWindow::setSerialPortInfo()
 {
     _portMenu = new QMenu("Port", this);
     _portGroup = new QActionGroup(_portMenu);
+    connect(_portGroup, &QActionGroup::triggered, this, &MainWindow::deviceSelected);
     _portGroup->setExclusive(true);
     setActionsForPortInfos();
     _ui->deviceMenu->addMenu(_portMenu);
@@ -324,17 +331,18 @@ void MainWindow::setSerialPortInfo()
 
 void MainWindow::setActionsForPortInfos()
 {
-    auto portInfos = QSerialPortInfo::availablePorts();
-    QSerialPortInfo portInfo;
-    for (int i=0; i<portInfos.size(); ++i) {
-        portInfo = portInfos.at(i);
+    for (auto portInfo: QSerialPortInfo::availablePorts()) {
         auto port = new QAction(portInfo.portName(), _portMenu);
         port->setCheckable(true);
-        if (i == 0) port->setChecked(true);
+        if (port->text() == _checkedAction)
+            port->setChecked(true);
         _serialPortInfos[portInfo.portName()] = portInfo;
         _portMenu->addAction(port);
         _portGroup->addAction(port);
     }
+
+    if (!_portGroup->checkedAction() && _portGroup->actions().size())
+        _portGroup->actions().first()->setChecked(true);
 }
 
 void MainWindow::setAxisValues()
