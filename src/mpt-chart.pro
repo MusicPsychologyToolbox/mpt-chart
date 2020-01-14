@@ -1,9 +1,3 @@
-#-------------------------------------------------
-#
-# Project created by QtCreator 2019-07-29T22:35:22
-#
-#-------------------------------------------------
-
 QT       += core gui serialport charts
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
@@ -27,12 +21,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 CONFIG += c++14
 
 SOURCES += \
+        douglaspeucker.cpp \
         main.cpp \
         mainwindow.cpp \
         chartview.cpp \
         serialreader.cpp
 
 HEADERS += \
+        douglaspeucker.h \
         mainwindow.h \
         chartview.h \
         serialreader.h

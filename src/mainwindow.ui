@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>799</width>
+    <width>990</width>
     <height>600</height>
    </rect>
   </property>
@@ -75,13 +75,13 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>799</width>
-     <height>21</height>
+     <width>990</width>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="fileMenu">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <addaction name="actionOpen_CSV"/>
     <addaction name="separator"/>
@@ -91,13 +91,13 @@
    </widget>
    <widget class="QMenu" name="helpMenu">
     <property name="title">
-     <string>Help</string>
+     <string>&amp;Help</string>
     </property>
     <addaction name="actionAboutQt"/>
    </widget>
    <widget class="QMenu" name="deviceMenu">
     <property name="title">
-     <string>Device</string>
+     <string>&amp;Device</string>
     </property>
     <addaction name="actionConnect"/>
     <addaction name="actionDisconnect"/>
@@ -105,7 +105,7 @@
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>&amp;View</string>
     </property>
     <addaction name="actionZoom_In"/>
     <addaction name="actionZoom_Out"/>
