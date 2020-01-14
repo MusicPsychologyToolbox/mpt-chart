@@ -31,11 +31,10 @@
 #include <QValueAxis>
 #include <QXYSeries>
 
-MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent),
-    _ui(new Ui::MainWindow),
-    _serialPort(new QSerialPort(this)),
-    _serialReader(_serialPort)
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent)
+    , _ui(new Ui::MainWindow)
+    , _serialReader(this)
 {
     _ui->setupUi(this);
     setStandardBaudRates();
@@ -48,7 +47,9 @@ MainWindow::MainWindow(QWidget *parent) :
 
     setupAxisX();
     setupAxisY();
+    setupDpEpsilon();
 
+    _serialReader.setAxisX(_ui->chartView->axisX());
     _serialReader.airSeries1()->attachAxis(_ui->chartView->axisX());
     _serialReader.airSeries1()->attachAxis(_ui->chartView->axisY());
     _serialReader.airSeries2()->attachAxis(_ui->chartView->axisX());
@@ -63,18 +64,10 @@ MainWindow::MainWindow(QWidget *parent) :
             this, &MainWindow::showNewData);
     connect(_ui->chartView, &ChartView::axisValuesChanged,
             this, &MainWindow::setAxisValues);
-    connect(_ui->chartView, &ChartView::shiftLeft,
-            this, &MainWindow::shiftLeft);
-    connect(_ui->chartView, &ChartView::shiftRight,
-            this, &MainWindow::shiftRight);
 }
 
 MainWindow::~MainWindow()
 {
-    if (_serialPort->isOpen())
-        _serialPort->close();
-
-    delete _serialPort;
     delete _ui;
 }
 
@@ -91,8 +84,10 @@ void MainWindow::on_actionOpen_CSV_triggered()
         _rawLines = _rawData.split('\n');
         if (_rawLines.first().startsWith("ms"))
             _rawLines.removeFirst();
-        _serialReader.process(_rawLines.mid(0, _serialReader.samples()));
+        _serialReader.load(_rawLines);
         file.close();
+    } else {
+        appendLog(QString("Error: Could not open CSV file %1.").arg(fileName));
     }
 }
 
@@ -102,12 +97,16 @@ void MainWindow::on_actionExportCSV_triggered()
                                                  tr("Export CSV"),
                                                  QString(),
                                                  tr("CSV (*.csv)"));
+    if (!fileName.endsWith(".csv", Qt::CaseInsensitive))
+        fileName.append(".csv");
     QFile file(fileName);
     if (file.open(QFile::WriteOnly)) {
         QTextStream stream(&file);
-        stream << "ms,sync,air1,air2,air3,pulse\n";
+        stream << "ms,sync,air1,air2,air3,pulse";
         stream << _rawData;
         file.close();
+    } else {
+        appendLog(QString("Error: Could not open export file %1.").arg(fileName));
     }
 }
 
@@ -131,49 +130,60 @@ void MainWindow::deviceSelected(QAction *action)
 
 void MainWindow::on_actionConnect_triggered()
 {
-    if (_serialPort->isOpen())
+    if (_serialReader.serialPort()->isOpen())
         return;
+
+    _serialReader.clear();
     _rawData.clear();
     _rawLines.clear();
     _rawData.reserve(_initSize);
     _ui->dataLog->clear();
+    on_actionReset_Zoom_triggered();
 
     auto baud = _baudGroup->checkedAction()->text().toInt();
-    if (!_serialPort->setBaudRate(baud, QSerialPort::AllDirections)) {
-        _ui->statusLog->appendPlainText(QString("Error code: %1\n Message: %2")
-                                        .arg(_serialPort->error())
-                                        .arg(_serialPort->errorString()));
+    if (!_serialReader.serialPort()->setBaudRate(baud, QSerialPort::AllDirections)) {
+        appendLog(QString("Error code: %1\n Message: %2")
+                  .arg(_serialReader.serialPort()->error())
+                  .arg(_serialReader.serialPort()->errorString()));
+        return;
     }
 
     auto action = _portGroup->checkedAction();
     if (!action) return;
     auto portInfo = _serialPortInfos.value(action->text());
-    _ui->statusLog->appendPlainText(QString("Configured Baud (%1) and Port (%2).")
-                                    .arg(baud).arg(portInfo.portName()));
+    appendLog(QString("Configured Baud (%1) and Port (%2).")
+              .arg(baud).arg(portInfo.portName()));
     if (portInfo.isNull()) {
-        _ui->statusLog->appendPlainText("ERROR: no valid serial port found!");
+        appendLog("ERROR: no valid serial port found!");
+        return;
     } else {
-        _serialPort->setPort(portInfo);
+        _serialReader.serialPort()->setPort(portInfo);
     }
 
-    _ui->statusLog->appendPlainText(QString("Start reading data. Baud: %1 Port: %2")
-                                    .arg(_serialPort->baudRate())
-                                    .arg(_serialPort->portName()));
-    if (!_serialPort->open(QIODevice::ReadOnly)) {
-        _ui->statusLog->appendPlainText(QString("Failed to open port %1 error: %2")
-                                        .arg(_serialPort->portName())
-                                        .arg(_serialPort->errorString()));
+    appendLog(QString("Start reading data. Baud: %1 Port: %2")
+              .arg(_serialReader.serialPort()->baudRate())
+              .arg(_serialReader.serialPort()->portName()));
+    if (!_serialReader.serialPort()->open(QIODevice::ReadOnly)) {
+        appendLog(QString("Failed to open port %1 error: %2")
+                  .arg(_serialReader.serialPort()->portName())
+                  .arg(_serialReader.serialPort()->errorString()));
+        return;
     }
+
+    // Required on Windows; otherwise the Arduion restart does not happen
+    _serialReader.serialPort()->setRequestToSend(true);
+    _serialReader.serialPort()->setDataTerminalReady(true);
+
     _timer.start(_timer_msec);
 }
 
 void MainWindow::on_actionDisconnect_triggered()
 {
-    if (!_serialPort->isOpen())
+    if (!_serialReader.serialPort()->isOpen())
         return;
-    _serialPort->close();
+    _serialReader.serialPort()->close();
     _timer.stop();
-    _ui->statusLog->appendPlainText("Data recoding stopped.");
+    appendLog("Data recoding stopped.");
 }
 
 void MainWindow::on_actionZoom_In_triggered()
@@ -206,6 +216,7 @@ void MainWindow::on_actionAboutQt_triggered()
 
 void MainWindow::showNewData(const QByteArray &data)
 {
+    _rawData.append('\n');
     _rawData.append(data);
     _ui->dataLog->appendPlainText(data);
 }
@@ -213,9 +224,9 @@ void MainWindow::showNewData(const QByteArray &data)
 void MainWindow::minXChanged(int value)
 {
     if (value == _maxXSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum X must be != maximum X."));
+        appendLog("Minimum X must be != maximum X.");
     } else if (value > _maxXSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
+        appendLog("Minimum X must be < maximum X.");
     } else {
         _ui->chartView->axisX()->setMin(value);
         _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
@@ -225,9 +236,9 @@ void MainWindow::minXChanged(int value)
 void MainWindow::maxXChanged(int value)
 {
     if (value == _minXSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum X must be != maximum X."));
+        appendLog("Minimum X must be != maximum X.");
     } else if (value < _minXSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum X must be < maximum X."));
+        appendLog("Minimum X must be < maximum X.");
     } else {
         _ui->chartView->axisX()->setMax(value);
         _serialReader.setSamples(_maxXSpinBox->value()-_minXSpinBox->value());
@@ -237,9 +248,9 @@ void MainWindow::maxXChanged(int value)
 void MainWindow::minYChanged(int value)
 {
     if (value == _maxYSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
+        appendLog("Minimum Y must be != maximum Y.");
     } else if (value > _maxYSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
+        appendLog("Minimum Y must be < maximum Y.");
     } else {
         _ui->chartView->axisY()->setMin(value);
     }
@@ -248,12 +259,20 @@ void MainWindow::minYChanged(int value)
 void MainWindow::maxYChanged(int value)
 {
     if (value == _minYSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum Y must be != maximum Y."));
+        appendLog("Minimum Y must be != maximum Y.");
     } else if (value < _minYSpinBox->value()) {
-        _ui->statusLog->appendPlainText(QString("Minimum Y must be < maximum Y."));
+        appendLog("Minimum Y must be < maximum Y.");
     } else {
         _ui->chartView->axisY()->setMax(value);
     }
+}
+
+void MainWindow::dpEpsilonChanged(double value)
+{
+    _serialReader.setDpEpsilon(value);
+
+    if (!_serialReader.serialPort()->isOpen())
+        _serialReader.reload();
 }
 
 void MainWindow::setupAxisX()
@@ -270,8 +289,10 @@ void MainWindow::setupAxisX()
     _maxXSpinBox->setValue(_serialReader.samples());
     auto maxLabel = new QLabel("Maximum X: ", _ui->toolBar);
     maxLabel->setMargin(6);
+
     _ui->toolBar->addWidget(maxLabel);
     _ui->toolBar->addWidget(_maxXSpinBox);
+
     connect(_minXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minXChanged);
     connect(_maxXSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxXChanged);
 
@@ -292,15 +313,36 @@ void MainWindow::setupAxisY()
     _ui->toolBar->addWidget(_minYSpinBox);
     _maxYSpinBox = new QSpinBox(_ui->toolBar);
     _maxYSpinBox->setRange(0, 1024);
-    _maxYSpinBox->setValue(300);
+    _maxYSpinBox->setValue(350);
     auto maxLabel = new QLabel("Maximum Y: ", _ui->toolBar);
     maxLabel->setMargin(6);
+
     _ui->toolBar->addWidget(maxLabel);
     _ui->toolBar->addWidget(_maxYSpinBox);
-    connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::minYChanged);
-    connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &MainWindow::maxYChanged);
+
+    connect(_minYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::minYChanged);
+    connect(_maxYSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &MainWindow::maxYChanged);
 
     _ui->chartView->axisY()->setRange(_minYSpinBox->value(), _maxYSpinBox->value());
+}
+
+void MainWindow::setupDpEpsilon()
+{
+    auto label = new QLabel("DP Epsilon: ", _ui->toolBar);
+    label->setMargin(6);
+    _dpEpsilonSpinBox = new QDoubleSpinBox(_ui->toolBar);
+    _dpEpsilonSpinBox->setRange(0.0, 100.0);
+    _dpEpsilonSpinBox->setDecimals(1);
+    _dpEpsilonSpinBox->setSingleStep(0.1);
+    _dpEpsilonSpinBox->setValue(_serialReader.dpEpsilon());
+
+    _ui->toolBar->addWidget(label);
+    _ui->toolBar->addWidget(_dpEpsilonSpinBox);
+
+    connect(_dpEpsilonSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &MainWindow::dpEpsilonChanged);
 }
 
 void MainWindow::setStandardBaudRates()
@@ -345,42 +387,12 @@ void MainWindow::setActionsForPortInfos()
         _portGroup->actions().first()->setChecked(true);
 }
 
+void MainWindow::appendLog(const QString &log) {
+    _ui->statusLog->appendPlainText(log);
+}
+
 void MainWindow::setAxisValues()
 {
     _minYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->min()));
     _maxYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->max()));
-}
-
-void MainWindow::shiftLeft()
-{
-    if (_rawLines.isEmpty())
-        _rawLines = _rawData.split('\n');
-
-    if (_minShift == 0) return;
-
-    _minShift -= 10;
-    if (!_maxShift)
-        _maxShift -= _serialReader.samples() - 10;
-    else
-        _maxShift -= 10;
-
-    auto lines = _rawLines.mid(_minShift, _maxShift);
-    _serialReader.process(lines);
-}
-
-void MainWindow::shiftRight()
-{
-    if (_rawLines.isEmpty())
-        _rawLines = _rawData.split('\n');
-
-    if (_rawLines.size() <= _maxShift) return;
-
-    _minShift += 10;
-    if (!_maxShift)
-        _maxShift += 10 + _serialReader.samples();
-    else
-        _maxShift += 10;
-
-    auto lines = _rawLines.mid(_minShift, _maxShift);
-    _serialReader.process(lines);
 }

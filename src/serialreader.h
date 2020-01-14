@@ -28,6 +28,7 @@
 
 QT_CHARTS_BEGIN_NAMESPACE
 class QLineSeries;
+class QValueAxis;
 class QXYSeries;
 QT_CHARTS_END_NAMESPACE
 
@@ -40,7 +41,26 @@ class SerialReader : public QObject
     Q_OBJECT
 
 public:
-    SerialReader(QSerialPort *serialPort, QObject *parent = nullptr);
+    SerialReader(QObject *parent = nullptr);
+    ~SerialReader();
+
+    void clear();
+
+    void setAxisX(QValueAxis *axisX) {
+        _axisX = axisX;
+    }
+
+    qreal dpEpsilon() const {
+        return _dgEpsilon;
+    }
+
+    void setDpEpsilon(qreal epsilon) {
+        _dgEpsilon = epsilon;
+    }
+
+    QSerialPort* serialPort() const {
+        return _serialPort;
+    }
 
     QXYSeries* airSeries1() const {
         return _airSeries1;
@@ -68,7 +88,8 @@ public:
 
     void showPulse(bool show);
 
-    void process(const QList<QByteArray> &lines);
+    void load(const QList<QByteArray> &lines);
+    void reload();
 
 signals:
     void newData(const QByteArray &data);
@@ -77,16 +98,20 @@ public slots:
     void read();
 
 private:
-    bool setValues(const QList<QByteArray> &columns);
+    void appendValues(const QList<QByteArray> &columns);
+    void process(const QList<QByteArray> &lines);
 
 private:
+    bool _arduinoReady = false;
     bool _showPulse = false;
     int _position = 0;
     int _samples = 1000;
+    qreal _dgEpsilon = 2.0;
+
+    QSerialPort *_serialPort;
 
     QByteArray _buffer;
 
-    QSerialPort *_serialPort;
     QXYSeries *_airSeries1;
     QXYSeries *_airSeries2;
     QXYSeries *_airSeries3;
@@ -95,6 +120,7 @@ private:
     QVector<QPointF> _airBuffer2;
     QVector<QPointF> _airBuffer3;
     QVector<QPointF> _pulseBuffer;
+    QValueAxis *_axisX;
 };
 
 #endif // SERIALREADER_H

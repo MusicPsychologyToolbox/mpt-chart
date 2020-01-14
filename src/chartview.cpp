@@ -23,12 +23,13 @@
 #include <QValueAxis>
 
 ChartView::ChartView(QWidget *parent)
-    : QChartView(parent),
-      _axisX(new QValueAxis),
-      _axisY(new QValueAxis)
+    : QChartView(parent)
+    , _axisX(new QValueAxis)
+    , _axisY(new QValueAxis)
 {
     chart()->addAxis(_axisX, Qt::AlignBottom);
     chart()->addAxis(_axisY, Qt::AlignLeft);
+    setRubberBand(QChartView::RectangleRubberBand);
 }
 
 QValueAxis* ChartView::axisX() const
@@ -44,26 +45,4 @@ QValueAxis* ChartView::axisY() const
 bool ChartView::viewportEvent(QEvent *event)
 {
     return QChartView::viewportEvent(event);
-}
-
-void ChartView::keyPressEvent(QKeyEvent *event)
-{
-    switch (event->key()) {
-    case Qt::Key_Left:
-        emit shiftLeft();
-        break;
-    case Qt::Key_Right:
-        emit shiftRight();
-        break;
-    case Qt::Key_Up:
-        chart()->scroll(0, 10);
-        break;
-    case Qt::Key_Down:
-        chart()->scroll(0, -10);
-        break;
-    default:
-        QGraphicsView::keyPressEvent(event);
-        break;
-    }
-    event->accept();
 }

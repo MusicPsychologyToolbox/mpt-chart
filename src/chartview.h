@@ -42,12 +42,9 @@ public:
 
 signals:
     void axisValuesChanged();
-    void shiftLeft();
-    void shiftRight();
 
 protected:
     bool viewportEvent(QEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     QValueAxis *_axisX;

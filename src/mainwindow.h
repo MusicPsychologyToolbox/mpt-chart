@@ -33,6 +33,7 @@ class MainWindow;
 }
 
 class QActionGroup;
+class QDoubleSpinBox;
 class QSpinBox;
 
 class MainWindow : public QMainWindow
@@ -70,23 +71,23 @@ private slots:
     void maxXChanged(int value);
     void minYChanged(int value);
     void maxYChanged(int value);
+    void dpEpsilonChanged(double value);
 
     void setAxisValues();
-
-    void shiftLeft();
-    void shiftRight();
 
 private:
     void setupAxisX();
     void setupAxisY();
+    void setupDpEpsilon();
 
     void setStandardBaudRates();
     void setSerialPortInfo();
     void setActionsForPortInfos();
 
+    void appendLog(const QString &log);
+
 private:
     Ui::MainWindow *_ui;
-    QSerialPort *_serialPort;
 
     QMenu *_baudMenu;
     QMenu *_portMenu;
@@ -102,16 +103,15 @@ private:
 
     SerialReader _serialReader;
 
-    const int _initSize = 1024 * 1024 * 2; // 2MiB
+    const int _initSize = 1024 * 1024 * 8; // 8MiB
     QByteArray _rawData;
     QList<QByteArray> _rawLines;
-    int _minShift = 0;
-    int _maxShift = _serialReader.samples();
 
     QSpinBox *_minXSpinBox;
     QSpinBox *_maxXSpinBox;
     QSpinBox *_minYSpinBox;
     QSpinBox *_maxYSpinBox;
+    QDoubleSpinBox *_dpEpsilonSpinBox;
 };
 
 #endif // MAINWINDOW_H

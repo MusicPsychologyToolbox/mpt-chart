@@ -19,18 +19,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "serialreader.h"
+#include "douglaspeucker.h"
 
 #include <QSerialPort>
 #include <QLineSeries>
+#include <QValueAxis>
 #include <QXYSeries>
 
-SerialReader::SerialReader(QSerialPort *serialPort, QObject *parent)
-    : QObject(parent),
-      _serialPort(serialPort),
-      _airSeries1(new QLineSeries(this)),
-      _airSeries2(new QLineSeries(this)),
-      _airSeries3(new QLineSeries(this)),
-      _pulseSeries(new QLineSeries(this))
+SerialReader::SerialReader(QObject *parent)
+    : QObject(parent)
+    , _serialPort(new QSerialPort(this))
+    , _airSeries1(new QLineSeries(this))
+    , _airSeries2(new QLineSeries(this))
+    , _airSeries3(new QLineSeries(this))
+    , _pulseSeries(new QLineSeries(this))
 {
     _airSeries1->setName("air1");
     _airSeries2->setName("air2");
@@ -41,40 +43,38 @@ SerialReader::SerialReader(QSerialPort *serialPort, QObject *parent)
     _airBuffer2.reserve(_samples);
     _airBuffer3.reserve(_samples);
     _pulseBuffer.reserve(_samples);
-    for (int i=0; i<_samples; ++i) {
-        _airBuffer1.append(QPointF(i, 0));
-        _airBuffer2.append(QPointF(i, 0));
-        _airBuffer3.append(QPointF(i, 0));
-        _pulseBuffer.append(QPointF(i, 0));
-    }
-    _airSeries1->replace(_airBuffer1);
-    _airSeries2->replace(_airBuffer2);
-    _airSeries3->replace(_airBuffer3);
-    _pulseSeries->replace(_pulseBuffer);
+}
+
+SerialReader::~SerialReader()
+{
+    if (_serialPort->isOpen())
+        _serialPort->close();
+    delete _serialPort;
+}
+
+void SerialReader::clear()
+{
+    _arduinoReady = false;
+    _airBuffer1.clear();
+    _airBuffer2.clear();
+    _airBuffer3.clear();
+    _pulseBuffer.clear();
 }
 
 void SerialReader::showPulse(bool show)
 {
     _showPulse = show;
-    for (auto i=0; i<_pulseBuffer.size(); ++i)
-        _pulseBuffer[i].setY(0);
 }
 
-void SerialReader::process(const QList<QByteArray> &lines)
+void SerialReader::load(const QList<QByteArray> &lines)
 {
-    _position = 0;
-    for (auto line: lines) {
-        if (!(_position % _samples)) {
-            _position = 0;
-        }
-        setValues(line.split(','));
-        ++_position;
-    }
+    clear();
+    process(lines);
+}
 
-    _airSeries1->replace(_airBuffer1);
-    _airSeries2->replace(_airBuffer2);
-    _airSeries3->replace(_airBuffer3);
-    _pulseSeries->replace(_pulseBuffer);
+void SerialReader::reload()
+{
+    process({});
 }
 
 void SerialReader::read()
@@ -88,40 +88,67 @@ void SerialReader::read()
     for (auto line: data.split('\n')) {
         if (line.isEmpty())
             continue;
-        lines.push_back(line);
-    }
-
-    int count = lines.count();
-    if (_samples - (_position + 1) < count) {
-        _position = _samples - count;
-        for (int i=0; i<_position; ++i) {
-            _airBuffer1[i].setY(_airBuffer1.at(i+count).y());
-            _airBuffer2[i].setY(_airBuffer2.at(i+count).y());
-            _airBuffer3[i].setY(_airBuffer3.at(i+count).y());
-            _pulseBuffer[i].setY(_pulseBuffer.at(i+count).y());
+        if (_arduinoReady) {
+            lines.push_back(line);
+        } else {
+            _arduinoReady = line.contains("Arduino Ready");
         }
     }
 
     for (auto line: lines) {
-        if (setValues(line.split(',')))
-            ++_position;
+        appendValues(line.split(','));
     }
 
-    _airSeries1->replace(_airBuffer1);
-    _airSeries2->replace(_airBuffer2);
-    _airSeries3->replace(_airBuffer3);
-    _pulseSeries->replace(_pulseBuffer);
-    emit newData(lines.join("\n"));
+    QVector<QPointF> dprAir1;
+    DouglasPeucker::douglasPeucker(_airBuffer1, _dgEpsilon, dprAir1);
+    _airSeries1->replace(dprAir1);
+    QVector<QPointF> dprAir2;
+    DouglasPeucker::douglasPeucker(_airBuffer2, _dgEpsilon, dprAir2);
+    _airSeries2->replace(dprAir2);
+    QVector<QPointF> dprAir3;
+    DouglasPeucker::douglasPeucker(_airBuffer3, _dgEpsilon, dprAir3);
+    _airSeries3->replace(dprAir3);
+    QVector<QPointF> dprPulse;
+    DouglasPeucker::douglasPeucker(_pulseBuffer, _dgEpsilon, dprPulse);
+    _pulseSeries->replace(dprPulse);
+
+    if (!dprAir1.isEmpty())
+        _axisX->setMax(dprAir1.last().x());
+
+    if (!lines.isEmpty())
+        emit newData(lines.join("\n"));
 }
 
-bool SerialReader::setValues(const QList<QByteArray> &columns)
+void SerialReader::appendValues(const QList<QByteArray> &columns)
 {
     if (columns.size() != 6)
-        return false;
-    _airBuffer1[_position].setY(columns[2].toInt());
-    _airBuffer2[_position].setY(columns[3].toInt());
-    _airBuffer3[_position].setY(columns[4].toInt());
+        return;
+    auto ms = columns[0].toDouble();
+    _airBuffer1.append(QPointF(ms, columns[2].toInt()));
+    _airBuffer2.append(QPointF(ms, columns[3].toInt()));
+    _airBuffer3.append(QPointF(ms, columns[4].toInt()));
     if (_showPulse && columns.size() == 6)
-        _pulseBuffer[_position].setY(columns[5].toInt());
-    return true;
+        _pulseBuffer.append(QPointF(ms, columns[5].toInt()));
+}
+
+void SerialReader::process(const QList<QByteArray> &lines)
+{
+    for (auto line: lines)
+        appendValues(line.split(','));
+
+    QVector<QPointF> dprAir1;
+    DouglasPeucker::douglasPeucker(_airBuffer1, _dgEpsilon, dprAir1);
+    _airSeries1->replace(dprAir1);
+    QVector<QPointF> dprAir2;
+    DouglasPeucker::douglasPeucker(_airBuffer2, _dgEpsilon, dprAir2);
+    _airSeries2->replace(dprAir2);
+    QVector<QPointF> dprAir3;
+    DouglasPeucker::douglasPeucker(_airBuffer3, _dgEpsilon, dprAir3);
+    _airSeries3->replace(dprAir3);
+    QVector<QPointF> dprPulse;
+    DouglasPeucker::douglasPeucker(_pulseBuffer, _dgEpsilon, dprPulse);
+    _pulseSeries->replace(dprPulse);
+
+    if (!dprAir1.isEmpty())
+        _axisX->setMax(dprAir1.last().x());
 }
