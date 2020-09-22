@@ -22,11 +22,14 @@
 #include "ui_mainwindow.h"
 
 #include <QActionGroup>
+#include <QAudioRecorder>
+#include <QDateTime>
 #include <QFileDialog>
 #include <QLabel>
 #include <QMessageBox>
 #include <QSerialPort>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QValueAxis>
 #include <QXYSeries>
@@ -34,11 +37,17 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , _ui(new Ui::MainWindow)
+    , _audioRecorder(new QAudioRecorder(this))
     , _serialReader(this)
 {
     _ui->setupUi(this);
     setStandardBaudRates();
     setSerialPortInfo();
+    setAudioDeviceInfo();
+
+    QDir dir(documentsLocation());
+    if (!dir.exists())
+        dir.mkpath(dir.absolutePath());
 
     _ui->chartView->chart()->addSeries(_serialReader.airSeries1());
     _ui->chartView->chart()->addSeries(_serialReader.airSeries2());
@@ -60,10 +69,14 @@ MainWindow::MainWindow(QWidget *parent)
     _serialReader.pulseSeries()->attachAxis(_ui->chartView->axisY());
 
     connect(&_timer, &QTimer::timeout, &_serialReader, &SerialReader::read);
+    connect(&_serialReader, &SerialReader::arduinoStarted,
+                this, &MainWindow::recordAudio);
     connect(&_serialReader, &SerialReader::newData,
             this, &MainWindow::showNewData);
     connect(_ui->chartView, &ChartView::axisValuesChanged,
             this, &MainWindow::setAxisValues);
+    connect(_audioRecorder, QOverload<QMediaRecorder::Error>::of(&QMediaRecorder::error),
+            this, &MainWindow::handleAudioInError);
 }
 
 MainWindow::~MainWindow()
@@ -75,8 +88,10 @@ void MainWindow::on_actionOpen_CSV_triggered()
 {
     auto fileName = QFileDialog::getOpenFileName(this,
                                                  tr("Open CSV"),
-                                                 QString(),
+                                                 currentFileLocation(),
                                                  tr("CSV (*.csv)"));
+    if (fileName.isEmpty())
+        return;
     QFile file(fileName);
     if (file.open(QFile::ReadOnly)) {
         _rawData = file.readAll();
@@ -95,8 +110,10 @@ void MainWindow::on_actionExportCSV_triggered()
 {
     auto fileName = QFileDialog::getSaveFileName(this,
                                                  tr("Export CSV"),
-                                                 QString(),
+                                                 currentFileLocation(),
                                                  tr("CSV (*.csv)"));
+    if (fileName.isEmpty())
+        return;
     if (!fileName.endsWith(".csv", Qt::CaseInsensitive))
         fileName.append(".csv");
     QFile file(fileName);
@@ -115,6 +132,19 @@ void MainWindow::on_actionQuit_triggered()
     close();
 }
 
+void MainWindow::on_audioMenu_aboutToShow()
+{
+    _audioInMenu->clear();
+    _audioInInfos.clear();
+    setActionsForAudioIn();
+}
+
+void MainWindow::audioInSelected(QAction *action)
+{
+    if (action)
+        _checkedAudioInAction = action->text();
+}
+
 void MainWindow::on_deviceMenu_aboutToShow()
 {
     _portMenu->clear();
@@ -125,7 +155,7 @@ void MainWindow::on_deviceMenu_aboutToShow()
 void MainWindow::deviceSelected(QAction *action)
 {
     if (action)
-        _checkedAction = action->text();
+        _checkedDeviceAction = action->text();
 }
 
 void MainWindow::on_actionConnect_triggered()
@@ -184,6 +214,12 @@ void MainWindow::on_actionDisconnect_triggered()
     _serialReader.serialPort()->close();
     _timer.stop();
     appendLog("Data recoding stopped.");
+
+    if (_audioRecorder->state() ^ QMediaRecorder::RecordingState ||
+            _audioRecorder->state() ^ QMediaRecorder::PausedState) {
+        _audioRecorder->stop();
+        appendLog("Audio Recording stopped.");
+    }
 }
 
 void MainWindow::on_actionZoom_In_triggered()
@@ -374,13 +410,13 @@ void MainWindow::setSerialPortInfo()
 void MainWindow::setActionsForPortInfos()
 {
     for (auto portInfo: QSerialPortInfo::availablePorts()) {
-        auto port = new QAction(portInfo.portName(), _portMenu);
-        port->setCheckable(true);
-        if (port->text() == _checkedAction)
-            port->setChecked(true);
+        auto action = new QAction(portInfo.portName(), _portMenu);
+        action->setCheckable(true);
+        if (action->text() == _checkedDeviceAction)
+            action->setChecked(true);
         _serialPortInfos[portInfo.portName()] = portInfo;
-        _portMenu->addAction(port);
-        _portGroup->addAction(port);
+        _portMenu->addAction(action);
+        _portGroup->addAction(action);
     }
 
     if (!_portGroup->checkedAction() && _portGroup->actions().size())
@@ -391,8 +427,88 @@ void MainWindow::appendLog(const QString &log) {
     _ui->statusLog->appendPlainText(log);
 }
 
+void MainWindow::setAudioDeviceInfo()
+{
+    _audioInMenu = new QMenu("Input Device", this);
+    _audioInGroup = new QActionGroup(_audioInMenu);
+    connect(_audioInGroup, &QActionGroup::triggered,
+            this, &MainWindow::audioInSelected);
+    _audioInGroup->setExclusive(true);
+    setActionsForAudioIn();
+    _ui->audioMenu->addMenu(_audioInMenu);
+}
+
+void MainWindow::setActionsForAudioIn()
+{
+    for (auto info: QAudioDeviceInfo::availableDevices(QAudio::AudioInput)) {
+        auto action = new QAction(info.deviceName(), _audioInMenu);
+        action->setCheckable(true);
+        if (action->text() == _checkedAudioInAction)
+            action->setChecked(true);
+        _audioInInfos[info.deviceName()] = info;
+        _audioInMenu->addAction(action);
+        _audioInGroup->addAction(action);
+    }
+}
+
 void MainWindow::setAxisValues()
 {
     _minYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->min()));
     _maxYSpinBox->setValue(static_cast<int>(_ui->chartView->axisY()->max()));
+}
+
+void MainWindow::recordAudio()
+{
+    if (!_ui->actionRecordAudio->isChecked())
+        return;
+    auto action = _audioInGroup->checkedAction();
+    if (!action)
+        return;
+    createAudioDirectory();
+
+    QAudioEncoderSettings audioSettings;
+    audioSettings.setCodec("audio/wav");
+    audioSettings.setChannelCount(2);
+    audioSettings.setQuality(QMultimedia::HighQuality);
+    _audioRecorder->setEncodingSettings(audioSettings);
+    _audioRecorder->setAudioInput(action->text());
+
+    auto url = QUrl::fromLocalFile(audioTargetFilePath(_currentSubDir+".wav"));
+    if (!_audioRecorder->setOutputLocation(url)) {
+        appendLog(_audioRecorder->errorString());
+    }
+    _audioRecorder->record();
+    appendLog("Audio recording started using " + action->text());
+}
+
+void MainWindow::handleAudioInError()
+{
+    qDebug() << "AUDIO ERROR";
+    appendLog(_audioRecorder->errorString());
+}
+
+QString MainWindow::documentsLocation() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + "/mpt-chart";
+}
+
+QString MainWindow::currentFileLocation() const
+{
+    return documentsLocation() + "/" + _currentSubDir;
+}
+
+QString MainWindow::audioTargetFilePath(const QString &fileName)
+{
+    return QDir::toNativeSeparators(currentFileLocation() + "/" +fileName);
+}
+
+void MainWindow::createAudioDirectory()
+{
+    _currentSubDir = QDateTime(QDateTime::currentDateTime()).toString("yyyy-MM-dd_hh-mm-ss");
+    QDir targetDir(currentFileLocation());
+    if (targetDir.exists()) {
+        appendLog("ERROR: target directory already exists " + targetDir.absolutePath());
+    } else {
+        targetDir.mkpath(targetDir.absolutePath());
+    }
 }

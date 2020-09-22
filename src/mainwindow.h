@@ -23,6 +23,7 @@
 
 #include "serialreader.h"
 
+#include <QAudioDeviceInfo>
 #include <QMap>
 #include <QMainWindow>
 #include <QSerialPortInfo>
@@ -33,6 +34,7 @@ class MainWindow;
 }
 
 class QActionGroup;
+class QAudioRecorder;
 class QDoubleSpinBox;
 class QSpinBox;
 
@@ -49,6 +51,10 @@ private slots:
     void on_actionOpen_CSV_triggered();
     void on_actionExportCSV_triggered();
     void on_actionQuit_triggered();
+
+    // Audio
+    void on_audioMenu_aboutToShow();
+    void audioInSelected(QAction *action);
 
     // Device
     void on_deviceMenu_aboutToShow();
@@ -74,6 +80,8 @@ private slots:
     void dpEpsilonChanged(double value);
 
     void setAxisValues();
+    void recordAudio();
+    void handleAudioInError();
 
 private:
     void setupAxisX();
@@ -83,6 +91,13 @@ private:
     void setStandardBaudRates();
     void setSerialPortInfo();
     void setActionsForPortInfos();
+    void setAudioDeviceInfo();
+    void setActionsForAudioIn();
+
+    QString documentsLocation() const;
+    QString currentFileLocation() const;
+    QString audioTargetFilePath(const QString &fileName);
+    void createAudioDirectory();
 
     void appendLog(const QString &log);
 
@@ -94,9 +109,14 @@ private:
 
     QActionGroup *_baudGroup;
     QActionGroup *_portGroup;
-    QString _checkedAction;
-
+    QString _checkedDeviceAction;
     QMap<QString, QSerialPortInfo> _serialPortInfos;
+
+    QMenu *_audioInMenu;
+    QActionGroup *_audioInGroup;
+    QMap<QString, QAudioDeviceInfo> _audioInInfos;
+    QString _checkedAudioInAction;
+    QAudioRecorder *_audioRecorder;
 
     QTimer _timer;
     const int _timer_msec = 50;
@@ -112,6 +132,8 @@ private:
     QSpinBox *_minYSpinBox;
     QSpinBox *_maxYSpinBox;
     QDoubleSpinBox *_dpEpsilonSpinBox;
+
+    QString _currentSubDir;
 };
 
 #endif // MAINWINDOW_H

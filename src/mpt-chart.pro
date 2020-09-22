@@ -1,11 +1,11 @@
-QT       += core gui serialport charts
+QT       += core gui serialport charts multimedia
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = mpt-chart
 TEMPLATE = app
 
-VERSION = 0.0.3.0
+VERSION = 0.0.5.0
 
 # The following define makes your compiler emit warnings if you use
 # any feature of Qt which has been marked as deprecated (the exact warnings

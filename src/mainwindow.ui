@@ -76,7 +76,7 @@
      <x>0</x>
      <y>0</y>
      <width>990</width>
-     <height>23</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="fileMenu">
@@ -84,7 +84,6 @@
      <string>&amp;File</string>
     </property>
     <addaction name="actionOpen_CSV"/>
-    <addaction name="separator"/>
     <addaction name="actionExportCSV"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -113,7 +112,15 @@
     <addaction name="separator"/>
     <addaction name="actionPulse"/>
    </widget>
+   <widget class="QMenu" name="audioMenu">
+    <property name="title">
+     <string>&amp;Audio</string>
+    </property>
+    <addaction name="actionRecordAudio"/>
+    <addaction name="separator"/>
+   </widget>
    <addaction name="fileMenu"/>
+   <addaction name="audioMenu"/>
    <addaction name="deviceMenu"/>
    <addaction name="menuView"/>
    <addaction name="helpMenu"/>
@@ -325,6 +332,17 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionRecordAudio">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Record Audio</string>
+   </property>
+   <property name="shortcut">
+    <string>F3</string>
    </property>
   </action>
  </widget>
