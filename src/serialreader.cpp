@@ -92,6 +92,8 @@ void SerialReader::read()
             lines.push_back(line);
         } else {
             _arduinoReady = line.contains("Arduino Ready");
+            if (_arduinoReady)
+                emit arduinoStarted();
         }
     }
 

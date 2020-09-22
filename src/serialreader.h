@@ -93,6 +93,7 @@ public:
 
 signals:
     void newData(const QByteArray &data);
+    void arduinoStarted();
 
 public slots:
     void read();
